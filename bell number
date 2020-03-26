@@ -1,0 +1,24 @@
+#    Wraps GAP's Bell for small n value
+#    for larger n use the dobinski formula:
+#    bell_number(n)=exp(-1)*sum(k=0,infinity,k^n/k!)
+
+def bell_number(n):
+    if n < 200:
+        ans=gap.eval("Bell(%s)"%ZZ(n))
+        return ZZ(ans)
+    from sage.functions.log import log
+    from sage.misc.functional import ceil, N, isqrt, exp as exp2
+    b, fact, k, n2, si = Integer(0), Integer(1), Integer(1), \
+    Integer(n)**2, isqrt(Integer(n)) // 2
+    while True:
+        mult, v = n2, Integer(0)
+        for i in range(si - 1, -1, -1):
+            v += mult * (k + i)**n
+            mult *= k + i
+        fact *= mult // n2
+        v //= fact
+        b += v
+        k += si
+        if v == 0:
+            break
+    return ceil(N((b - n) / n2 * exp2(Integer(-1)) - 1 / 4, log(b, 2) + 3))
