@@ -1,0 +1,61 @@
+# input: A,B azonos meretu negyzetes matrixok
+# output: A*B
+def GyorsMatrixSzorzas(A,B):
+    n=A.nrows()
+    if n==1:
+        return matrix(1,1,A[0,0]*B[0,0])
+    paritas=n%2
+    if paritas==1:
+        # sorok szama paratlan, kiegeszitem a matrixot egy csupa nulla sorral es oszloppal
+        # így (n+1)x(n+1)-es lesz a matrix, ahol n+1 mar paros
+        A=A.augment(matrix(n,1,0))
+        A=A.stack(matrix(1,n+1,0))
+        B=B.augment(matrix(n,1,0))
+        B=B.stack(matrix(1,n+1,0))
+        n+=1
+    n2=n//2;
+    a11=matrix(n2,n2,lambda i,j: A[i,j])
+    a12=matrix(n2,n2,lambda i,j: A[i,j+n2])
+    a21=matrix(n2,n2,lambda i,j: A[i+n2,j])
+    a22=matrix(n2,n2,lambda i,j: A[i+n2,j+n2])
+    b11=matrix(n2,n2,lambda i,j: B[i,j])
+    b12=matrix(n2,n2,lambda i,j: B[i,j+n2])
+    b21=matrix(n2,n2,lambda i,j: B[i+n2,j])
+    b22=matrix(n2,n2,lambda i,j: B[i+n2,j+n2])
+    
+    m1=GyorsMatrixSzorzas(a12-a22,b21+b22)
+    m2=GyorsMatrixSzorzas(a11+a22,b11+b22)
+    m3=GyorsMatrixSzorzas(a11-a21,b11+b12)
+    m4=GyorsMatrixSzorzas(a11+a12,b22)
+    m5=GyorsMatrixSzorzas(a11,b12-b22)
+    m6=GyorsMatrixSzorzas(a22,b21-b11)
+    m7=GyorsMatrixSzorzas(a21+a22,b11)
+    
+    # cij adja a szorzatmatrixot, ez trivialis:
+    # blokkmatrixok szorzata is blokkmatrix, igy a fenti m1,..,m7 ertekeket is hasznalva:
+    # c11=a11*b11+a12*b12=m1+m2-m4+m6
+    # c12=a11*b21+a12*b22=m4+m5
+    # c21=a21*b11+a22*b12=m6+m7
+    # c22=a21*b21+a22*b22=m2-m3+m5-m7
+    c11=m1+m2-m4+m6
+    c12=m4+m5
+    c21=m6+m7
+    c22=m2-m3+m5-m7
+    
+    temp=block_matrix([c11,c12,c21,c22])
+    # ha n paratlan volt, akkor az eggyel kisebb matrix az eredmeny
+    C=matrix(n-paritas,n-paritas,lambda i,j: temp[i,j])
+    return C
+
+# 2 random 5x5-os matrix es osszeszorzasa
+A=matrix(5,5,lambda i,j:int(10*random()))
+B=matrix(5,5,lambda i,j:int(10*random()))
+print A
+print
+print B
+print
+C=GyorsMatrixSzorzas(A,B)
+print C
+print 
+# ellenorzes
+print A*B-C

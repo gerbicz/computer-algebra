@@ -1,0 +1,357 @@
+# Z[p^k][x[0],...,x[mu-1]]-ben megoldja a tobbvaltozos polinomialis diofantikus egyenletet: 
+# sigma[0]*b[0]+...+sigma[r-1]*b[r-1]=c mod <I^(d+1),p^k>
+# ahol b[i]=a[0]...a[i-1]*a[i+1]*...*b[r-1]
+# Ha deg(c,x[0])<sum(deg(a[i],x[1], i=0..r-1), akkor
+#    egyertelmu megoldas van, olyan ahol deg(sigma[i],x[0])<deg(a[i],x[0])
+# Feltetel p nem osztja lcoeff(a[i] mod I) i=0,..,r-1
+#    es paronkent relativ primek Z[p][x[0]]-ban
+# Input: 
+# a, polinomok listaja (r darab) Z[p^k][x[0],...,x[mu-1]]-ben
+# c, Z[p^k][x[0],...,x[mu-1]]-beli polinom
+# ideal, [[x[1],alpha[1]],[x[2],alpha[2]],...,[x[mu-1],alpha[mu-1]]]
+#        alakban megdva, ahol I=<x[1]-alpha[1],x[2]-alpha[2],...>
+#        ami vegig kelleni fog: a gyuru (elso nehany) generatorai
+#        is ilyen sorrendben kovetik egymast: x[0],x[1],x[2],..,x[mu-1]
+#        x[0], a kimarado, spec. generator.
+#        Ha nem igy adjuk meg az idealt, akkor a program nem fog mukodni.
+#        Ez azert kell, mert a gyuru generatoraibol szedem ki az
+#        a,c,I valtozoit.
+# d>=0, max. teljes fokszama az x[1],...,x[mu-1]-re a keresett polinomoknak
+# p prim
+# k pozitiv egesz
+# Output:
+# sigma=[sigma[0],...,sigma[r-1]] polinomok listaja
+
+def MultivariateDiophant(a,c,ideal,d,p,k):
+    S=Integers(p**k)
+    r=len(a)
+    mu=1+len(ideal)
+    if mu>1:
+        # tobbvaltozos eset
+        xmu=parent(a[0]).gens()[mu-1]
+        amu=ideal[mu-2][1]
+        A=prod(a) # A=prod(a[i] for i in range(r))
+        anew=range(r)
+        b=range(r)
+        for j in range(r):
+            b[j]=A//a[j] # A oszthato a[j]-vel!
+            anew[j]=a[j].substitute({xmu:amu})
+        xmu=parent(c).gens()[mu-1]
+        cnew=c.substitute({xmu:amu})
+        idealnew=ideal[0:(mu-2)]
+        sigma=MultivariateDiophant(anew,cnew,idealnew,d,p,k)
+        e=c-sum(sigma[i]*b[i] for i in range(r))
+        xmu=parent(e).gens()[mu-1]
+        monomial=1
+        for m in range(1,d+1):
+            if e==0:
+                break
+            monomial*=xmu-amu
+            # e hatvanysor xmu=amu koruli Taylor soraban xmu**m egyutthatojanak kiszamitasa
+            cm=expand(e.substitute({xmu:xmu+amu})).coefficient(xmu**m)
+            if cm!=0:
+                deltas=MultivariateDiophant(anew,cm,idealnew,d,p,k)
+                for i in range(r):
+                    deltas[i]*=monomial
+                    sigma[i]+=deltas[i]
+                e-=sum(deltas[i]*b[i] for i in range(r))
+    else:
+        # egyvaltozos eset
+        egyutthatok=c.coefficients()
+        monomok=c.monomials()
+        sigma=[S(0)]*r
+        for j in range(len(egyutthatok)):
+            cm=egyutthatok[j]
+            m=monomok[j].degree()
+            deltas=UnivariateDiophant(a,m,p,k)
+            for i in range(r):
+                deltas[i]*=cm
+                sigma[i]+=deltas[i]
+    return sigma
+
+
+# Z[p^k][x]-ban az egyvaltozos diofantikus problema megoldasa:
+# sigma[0]*b[0]+...+sigma[r-1]*b[r-1]=x^m mod p^k
+# input:
+# a=[a[0],...,a[r-1]] polinomok listaja, ezzel:
+#    b[i]=a[0]*...a[i-1]*a[i+1]*...a[r-1]
+# output:
+# sigma=[sigma[0],...,sigma[r-1]]], ahol sigma egyertelmu megoldas:
+#     deg(sigma[i])<deg(a[i])
+# feltetel: p nem osztja lcoeff(a[i])-t es relativ primek Z[p][x]-ben
+
+def UnivariateDiophant(a,m,p,k):
+# az alapgyuru meg mindig tobbvaltozos, de tobbvaltozos polinomok koreben nem test
+# felett a sage nem tud osztani, ezert egy uj egyvaltozos gyurube teszem at a polinomokat,
+# majd onnan vissza
+    x=parent(a[0]).gens()[0]
+    S=Integers(p**k)
+    r=len(a)
+    if r>2:
+        s=MultiTermEEAlift(a,x,p,k)
+        result=[]
+        for j in range(r):
+            xx=var('xx')
+            R2.<xx>=PolynomialRing(S)
+            monomok=a[j].monomials()
+            c=a[j].coefficients()
+            aa=sum(xx**monomok[i].degree()*S(c[i]) for i in range(len(c)))
+            monomok=s[j].monomials()
+            c=s[j].coefficients()
+            ss=sum(xx**monomok[i].degree()*S(c[i]) for i in range(len(c)))
+            res=(xx**m*ss).quo_rem(aa)[1]
+            result+=[res.substitute({xx:x})]
+    else:
+        s=EEAlift(a[1],a[0],p,k)
+        xx=var('xx')
+        R2.<xx>=PolynomialRing(S)
+        monomok=s[0].monomials()
+        c=s[0].coefficients()
+        s[0]=sum(xx**monomok[i].degree()*S(c[i]) for i in range(len(c)))
+        monomok=s[1].monomials()
+        c=s[1].coefficients()
+        s[1]=sum(xx**monomok[i].degree()*S(c[i]) for i in range(len(c)))
+        monomok=a[0].monomials()
+        c=a[0].coefficients()
+        a0=sum(xx**monomok[i].degree()*S(c[i]) for i in range(len(c)))
+        monomok=a[1].monomials()
+        c=a[1].coefficients()
+        a1=sum(xx**monomok[i].degree()*S(c[i]) for i in range(len(c)))
+        q=(xx**m*s[0]).quo_rem(a0)[0]
+        result=[(expand(xx**m*s[0])).quo_rem(a0)[1],xx**m*s[1]+q*a1]
+        for i in range(2):
+            result[i]=result[i].substitute({xx:x})
+    return result
+
+
+# s[0],...,s[r-1] meghatarozasa, amelyre:
+# s[0]*b[0]+...+s[r-1]*b[r-1]=1 mod p^k
+# ahol deg(s[i])<deg(a[i])
+# itt: b[i]=a[0]*...*a[i-1]*a[i+1]*...a[r-1]
+# feltetel: lcoeff(a[i]) nem oszthato p-vel es Z[p][x]-ben relativ primek
+
+def MultiTermEEAlift(a,x,p,k):
+    r=len(a)
+    q=range(r)
+    s=range(r)
+    beta=range(r)
+    q[r-2]=a[r-1]
+    for j in range(r-3,-1,-1):
+        q[j]=a[j+1]*q[j+1]
+    beta[0]=parent(a[0])(1)
+    for j in range(1,r):
+        [beta[j],s[j-1]]=MultivariateDiophant([q[j-1],a[j-1]],beta[j-1],[],0,p,k)
+    s[r-1]=beta[r-1]
+    return s
+
+
+# Kiterjesztett eukelideszi algoritmus:
+# s,t,g meghatorzasa, ahol: a*s+b*t=g=GCD(a,b)
+# input: 
+# a,b Z[p][x]-beli polinom
+# output:
+# [s,t,g]
+
+def EEA(a,b):
+    # nem normalizalok itt, majd EEAlift-nel
+    c,d=a,b
+    c1,d1=1,0
+    c2,d2=0,1
+    while d!=0:
+        [q,r]=c.quo_rem(d)
+        r1,r2=c1-q*d1,c2-q*d2
+        c,c1,c2=d,d1,d2
+        d,d1,d2=r,r1,r2
+    return [c1,c2,c]
+
+
+# Kiterjesztett eukelideszi algoritmus felemelese Z[p^k][x]-be:
+# s,t meghatarozasa, ahol: a*s+b*t=1 mod p^k
+#     tovabba deg(s)<deg(b), deg(t)<deg(a)
+# input: 
+# a,b Z[p][x]-beli polinom, gcd(a,b)=1 Z[p][x]-ben
+# output:
+# [s,t]
+
+def EEAlift(a,b,p,k):
+    S=GF(p)
+    amodp=a.change_ring(S)
+    bmodp=b.change_ring(S)
+    [s,t,g]=EEA(amodp,bmodp)
+    # itt g=konstans Z_p[x]-ben, mert a,b relativ prim volt
+    s//=g
+    t//=g
+    s=s.change_ring(ZZ)
+    t=t.change_ring(ZZ)
+    smodp=s.change_ring(S)
+    tmodp=t.change_ring(S)
+    modulus=p
+    for j in range(k-1):
+        e=1-s*a-t*b
+        c=(e/modulus).change_ring(S)
+        sigma2,tau2=smodp*c,tmodp*c
+        [q,sigma]=sigma2.quo_rem(bmodp)
+        tau=(tau2+q*amodp).change_ring(S)
+        s+=sigma.change_ring(ZZ)*modulus
+        t+=tau.change_ring(ZZ)*modulus
+        modulus*=p
+    return [s,t]
+
+
+# Tobbvaltozos Hensel lifting
+# input:
+# a, Z[x[0],..,x[mu-1]]-beli polinom
+# ideal, ideal=[[x[1],alpha[1]],...,[x[mu-1],alpha[mu-1]]] alakban megadva
+#        ahol I=<x[1]-alpha[1],...,x[mu-1]-alpha[mu-1]>
+# p prim, nem osztja lcoeff(a mod I)-t
+# l pozitiv egesz, hogy p^l/2 korlat az egyutthatokra a szamolas kozben
+# u, polinomok listaja (legalabb 2 polinom), ahol prod(u)=a mod <ideal,p^l>
+# lcU a foegyutthatoi az u polinomoknak (x[0]-ra vonatkozoan)
+# output:
+# Ha sikerult felemelni a megoldast:
+#    U, polinomok listaja, Z[x[0],...,x[mu-1]]-ben, ahol prod(U)=a
+#    U[i]/lcoeff(U[i],x[0])=u[i]/lcoeff(u[i],x[0]) mod <ideal,p^l>
+# Ha nem sikerult felemelni, akkor hibauzenet
+
+def MultivariateHensel(a,ideal,p,l,u,lcU):
+    # u[i] mod ideal kiszamitasa, igy egyvaltozos lesz az eredetileg esetleg
+    # tobbvaltozos polinom
+    for i in range(len(u)):
+        v=parent(u[i]).gens()
+        eq=range(len(v))
+        for j in range(1,len(v)):
+            eq[j]=[v[j],ideal[j-1][1]]
+        eq[0]=[v[0],v[0]]
+        u[i]=u[i].substitute(dict(eq))
+    mu=1+len(ideal)
+    v=parent(a).gens()
+    x=v[0]
+    A=range(mu)
+    A[mu-1]=a
+    for j in range(mu-2,-1,-1):
+        y=ideal[j][0]
+        alpha=ideal[j][1]
+        A[j]=A[j+1].substitute({y:alpha})
+    maxdeg=max([a.degree(v[i]) for i in range(1,mu)])
+    U=u
+    n=len(U)
+    for j in range(1,mu):
+        U1=U[:];monomial=1
+        for k in range(n):
+            U1[k]=U1[k].change_ring(ZZ)
+        for m in range(n):
+            if lcU[m]!=1:
+                c=lcU[m].substitute(dict(ideal[j:(mu-2)])) 
+                kitevo=U[m].degree(x)
+                egyutthato=(U[m]).coefficient({x:kitevo})
+                U[m]+=(c-egyutthato)*x**kitevo
+        e=A[j]-prod(U)
+        for k in range(1,A[j].degree(v[j])+1):
+            monomial*=v[j]-ideal[j-1][1]
+            if e==0: # Geddes konyvben itt while van, de ide if kell, vagy ahogy csinaltam break, ha e=0
+                break
+            valtozok=parent(e).gens()
+            c=(expand(e.substitute({valtozok[j]:valtozok[j]+ideal[j-1][1]}))).coefficient({valtozok[j]:k})
+            c=c.change_ring(ZZ)
+            if c!=0:
+                deltaU=MultivariateDiophant(U1,c,ideal[0:(j-1)],maxdeg,p,l)
+                for i in range(n):
+                    deltaU[i]*=monomial
+                    U[i]+=deltaU[i]
+                e=A[j]-prod(U)
+    # U-beli polinomok atrakasa Z[x[0],...,x[mu-1]]-be
+    for i in range(n):
+        U[i]=U[i].change_ring(ZZ)
+        monomok=U[i].monomials()
+        egyutthatok=U[i].coefficients()
+        for j in range(len(egyutthatok)):
+            c=egyutthatok[j]
+            if c>(p**l)//2:
+                U[i]-=p**l*monomok[j]
+    if a==prod(U):
+        return U
+    else:
+        print"no such factorization exists"
+    return
+
+
+# 2 valtozos polinomra egy pelda
+# az ideal <y-1>
+x=var('x')
+y=var('y')
+R.<x,y>=PolynomialRing(ZZ)
+a=x^12 + x^10*y + 3*x^9*y + x^7*y^2 + 4*x^8 - 2*x^6*y^2 + x^5*y^3 + 4*x^7 + x^4*y^3 + 3*x^5*y - 6*x^3*y^3 + 6*x^5 + 9*x^4*y + 4*x^3*y^2 + 6*x^3*y - 7*x^2*y^2 + 12*x^3 + 18*x^2*y - 2*x*y^2 + 3*x^2 + 24*x + 6
+u1=x^7 + 4*x^2 - 2*x + 6
+u2=x^5 + x^3 + 3*x^2 + 4*x + 1
+ideal=[[y,1]]
+p=29
+l=1
+S=Integers(p**l)
+u1=u1.change_ring(S)
+u2=u2.change_ring(S)
+u=[u1,u2]
+lcU=[1,1]
+print MultivariateHensel(a,ideal,p,l,u,lcU)
+
+
+# 3 valtozos polinom, u1,u2 nem egyvaltozos polinomok
+# az ideal <y-1,z-5>
+x=var('x')
+y=var('y')
+z=var('z')
+R.<x,y,z>=PolynomialRing(ZZ)
+a=x^11 + x^7*y^2*z^2 + x^9*y - 2*x^6*y^2*z^2 + x^5*y^3*z^2 + 3*x^8*y + x^4*y^3*z^2 + 2*x^7*z + 4*x^6*z^2 - 6*x^3*y^3*z^2 + 2*x^3*y^2*z^3 + 4*x^2*y^2*z^4 + 7*x^7 + 4*x^3*y^2*z^2 - 4*x^2*y^2*z^3 - 8*x*y^2*z^4 + x^6 + 3*x^5*y + 5*x^5*z - 7*x^2*y^2*z^2 + 7*x^5 + 9*x^4*y + 5*x^3*y*z - 2*x*y^2*z^2 + 7*x^3*y + 6*x^3*z + 15*x^2*y*z + 12*x^2*z^2 + 12*x^3 + 21*x^2*y + 10*x*z^2 + 20*z^3 + 3*x^2 + 34*x*z + 28*z^2 + 28*x + 5*z + 7
+u1=x^6 + 28*x^2 -50 *x + 11*y + 21
+u2=x^5 + x^3 + z^3 + 3*x^2 + 5*y^2 -15 *z^2 + 14*x -10 *y + 75*z - 19
+ideal=[[y,1],[z,5]]
+p=7
+l=5
+S=Integers(p**l)
+u1=u1.change_ring(S)
+u2=u2.change_ring(S)
+u=[u1,u2]
+lcU=[1,1]
+print MultivariateHensel(a,ideal,p,l,u,lcU)
+
+
+# 4 valtozos polinom, u1, u2 nem fopolinomok (7 illetve 3 a foegyutthato)
+# az ideal <y-2,z-1,w-5>
+x=var('x')
+y=var('y')
+z=var('z')
+w=var('w')
+R.<x,y,z,w>=PolynomialRing(ZZ)
+a=3*x^8*y^2*z^2 - 15*x^7*y^2*z^2 + 21*x^10 + x^5*y^3*z^2 - 16*x^4*y^3*z^2 + 2*x^3*y^2*z^3*w + 4*x^2*y^2*z^4*w + 9*x^8 + 7*x^7*y + 62*x^3*y^3*z^2 - 28*x^2*y^2*z^4 - 10*x^2*y^2*z^3*w - 20*x*y^2*z^4*w - 77*x^6*y + 15*x^6*z + 4*x^3*y^2*z^2 + 112*x^2*y^3*z^2 + 140*x*y^2*z^4 + 33*x^6*w + 14*x^5*z*w + 28*x^4*z^2*w + 21*x^6 + 52*x^5*y - 196*x^4*z^2 - 19*x^2*y^2*z^2 - 735*x*y^3*z^2 + 28*x^5 + 996*x^4*y + 5*x^3*y*z - 5*x*y^2*z^2 + 11*x^3*y*w + 6*x^3*z*w + 12*x^2*z^2*w + 7*x^4 + 28*x^3*y - 55*x^2*y*z - 84*x^2*z^2 - 121*x^2*y*w + 10*x*z^2*w + 20*z^3*w + 22*x*z*w^2 + 44*z^2*w^2 + 12*x^3 + 364*x^2*y + 35*x*y*z - 140*z^3 + 77*x*y*w + 14*x*z*w - 280*z^2*w + 3*x^2 + 49*x*y + 20*x*z + 735*y*z - 196*z^2 + 44*x*w + 1617*y*w + 28*x + 1029*y + 5*z + 11*w + 7
+u1=7*x^4 + 7*x^2 - 20*x + 67
+u2=3*x^6 + 2*x^3 - 22*x^2 + 28*x + 287
+ideal=[[y,2],[z,1],[w,5]]
+p=37
+l=4
+S=Integers(p**l)
+u1=u1.change_ring(S)
+u2=u2.change_ring(S)
+u=[u1,u2]
+lcU=[7,3]
+print MultivariateHensel(a,ideal,p,l,u,lcU)
+
+
+# 3 valtozos polinom, multiliftingre egy pelda: a=u1*u2*u3 felemelese
+# az ideal <y-2,z-9>
+x=var('x')
+y=var('y')
+z=var('z')
+R.<x,y,z>=PolynomialRing(ZZ)
+a=48*x^13*y^3 + 36*x^10*y^6 + 48*x^15 - 288*x^13*y^2 + 36*x^12*y^3 - 432*x^10*y^5 + 576*x^13*y - 216*x^12*y^2 + 2160*x^10*y^4 + 32*x^9*y^5 + 24*x^6*y^8 - 384*x^13 + 432*x^12*y + 32*x^11*y^2 - 5760*x^10*y^3 - 320*x^9*y^4 + 24*x^8*y^5 - 384*x^6*y^7 - 288*x^12 - 128*x^11*y + 8640*x^10*y^2 + 1280*x^9*y^3 - 240*x^8*y^4 + 16*x^7*y^5 + 2688*x^6*y^6 + 12*x^4*y^8 + 84*x^8*y^3*z + 128*x^7*y^3*z^2 + 96*x^4*y^6*z^2 + 212*x^11 - 6912*x^10*y - 2544*x^9*y^2 + 607*x^8*y^3 - 160*x^7*y^4 - 10740*x^6*y^5 + 48*x^5*y^6 - 192*x^4*y^7 + 84*x^10*z - 504*x^8*y^2*z - 2304*x^7*y^3*z - 1728*x^4*y^6*z + 128*x^9*z^2 - 768*x^7*y^2*z^2 + 96*x^6*y^3*z^2 - 1152*x^4*y^5*z^2 + 1888*x^10 + 2496*x^9*y + 198*x^8*y^2 + 11072*x^7*y^3 + 26760*x^6*y^4 - 576*x^5*y^5 + 9132*x^4*y^6 - 2304*x^9*z + 1008*x^8*y*z + 13824*x^7*y^2*z - 1728*x^6*y^3*z + 20792*x^4*y^5*z + 1536*x^7*y*z^2 - 576*x^6*y^2*z^2 + 5760*x^4*y^4*z^2 + 9424*x^9 - 2316*x^8*y - 63816*x^7*y^2 - 34740*x^6*y^3 + 2880*x^5*y^4 - 99110*x^4*y^5 - 672*x^8*z - 27648*x^7*y*z + 10424*x^6*y^2*z - 104240*x^4*y^4*z - 1024*x^7*z^2 + 1152*x^6*y*z^2 - 15360*x^4*y^3*z^2 + 2056*x^8 + 126240*x^7*y - 5000*x^6*y^2 - 7680*x^5*y^3 + 483500*x^4*y^4 + 18432*x^7*z - 20960*x^6*y*z + 278720*x^4*y^3*z + 28*x^2*y^5*z - 768*x^6*z^2 + 23040*x^4*y^2*z^2 + 224*x^2*y^3*z^3 - 83744*x^7 + 71120*x^6*y + 11548*x^5*y^2 - 1278704*x^4*y^3 - 139*x^2*y^5 + 14195*x^6*z - 419172*x^4*y^2*z + 112*x^3*y^3*z - 280*x^2*y^4*z + 224*x^5*z^2 - 18432*x^4*y*z^2 - 5144*x^2*y^3*z^2 + 224*x^4*z^3 - 1344*x^2*y^2*z^3 - 58552*x^6 - 9328*x^5*y + 1912704*x^4*y^2 - 556*x^3*y^3 + 1390*x^2*y^4 - 3920*x^5*z + 336144*x^4*y*z - 672*x^3*y^2*z + 39308*x^2*y^3*z + 832*x^4*z^2 + 30864*x^2*y^2*z^2 + 2688*x^2*y*z^3 + 20716*x^5 - 1529184*x^4*y + 3336*x^3*y^2 - 95771*x^2*y^3 - 71060*x^4*z + 1344*x^3*y*z - 231270*x^2*y^2*z - 61728*x^2*y*z^2 - 1792*x^2*z^3 + 405920*x^4 - 6672*x^3*y + 551826*x^2*y^2 - 896*x^3*z + 460104*x^2*y*z + 41152*x^2*z^2 + 4448*x^3 - 1091412*x^2*y - 306008*x^2*z + 49*y^2*z + 392*z^3 + 723896*x^2 - 280*y^2 + 196*x*z - 196*y*z - 9296*z^2 - 1120*x + 1120*y + 72317*z - 182840
+u1=3*x^6 + 4*x + 1
+u2=4*x^4 + 7
+u3=4*x^5 + 23
+ideal=[[y,2],[z,9]]
+p=109
+l=4
+S=Integers(p**l)
+u1=u1.change_ring(S)
+u2=u2.change_ring(S)
+u3=u3.change_ring(S)
+u=[u1,u2,u3]
+lcU=[3,4,4]
+print MultivariateHensel(a,ideal,p,l,u,lcU)

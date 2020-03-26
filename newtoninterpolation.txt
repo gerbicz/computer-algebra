@@ -1,0 +1,51 @@
+# Newton interpolacio
+# input: S a domain ring, 
+# a (kulonbozo) alappontok (ez volt alpha az oran)
+# u a helyettesitesi ertekek vektora
+# ( mindketto n+1 hosszu, ahol n>=0 )
+# mig valtozo lesz a polinom valtozoja
+# output: az az egyertelmu, legfeljebb n-edfoku
+# f polinom, melyre f(a[i])=u[i] teljesul minden 0<=i<=n-re
+
+def NewtonInterpolacio(a,u,S,valtozo):
+    n=len(a)-1
+    
+    Q=PolynomialRing(S,valtozo)
+    
+    # Newton interpolaciohoz az inverzek kiszamitasa
+    g=range(n+1) # ez volt gamma a könyvben
+    for k in range(1,n+1):
+        szorzat=S(a[k]-a[0])
+        for i in range(1,k):
+            szorzat=S(szorzat*(a[k]-a[i]))
+        g[k]=szorzat**-1
+    
+    # Newton egyutthatok kiszamitasa
+    v=range(n+1)
+    v[0]=S(u[0])
+    for k in range(1,n+1):
+        temp=S(v[k-1])
+        for j in range(k-2,-1,-1):
+            temp=S(temp*(a[k]-a[j])+v[j])
+        v[k]=S((u[k]-temp)*g[k])
+    
+    # Newton alakbol standard alakba konvertalas
+    f=Q(v[n])
+    for k in range(n-1,-1,-1):
+        f=Q(f*(valtozo-a[k])+v[k])
+    
+    return(f)
+
+# pelda megoldasa a Geddes konyvbol
+p=97
+R=GF(p)
+y=var('y')
+v0=NewtonInterpolacio([0,1],[-21,-30],R,y)
+v1=NewtonInterpolacio([0,1],[20,17],R,y)
+v2=NewtonInterpolacio([0,1],[-36,-31],R,y)
+S=PolynomialRing(R,y)
+x=var('x')
+print v0
+print v1
+print v2
+NewtonInterpolacio([0,1,2],[v0,v1,v2],S,x)

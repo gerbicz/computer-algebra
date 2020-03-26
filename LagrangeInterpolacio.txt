@@ -1,0 +1,30 @@
+# Lagrange interpolacio
+# input: S a domain ring, 
+# a (kulonbozo) alappontok
+# u a helyettesitesi ertekek vektora
+# ( mindketto n+1 hosszu, ahol n>=0 )
+# mig valtozo lesz a polinom valtozoja
+# output: az az egyertelmu, legfeljebb n-edfoku
+# f polinom, melyre f(a[i])=u[i] teljesul minden 0<=i<=n-re
+
+def LagrangeInterpolacio(a,u,S,valtozo):
+    n=len(a)-1
+    Q=PolynomialRing(S,valtozo)
+    f=Q(0)
+    for k in range(n+1):
+        v=prod((valtozo-a[i+(i>=k)])/(a[k]-a[i+(i>=k)]) for i in range(n))
+        f+=Q(u[k]*v)
+    return(Q(f))
+
+# pelda:
+p=47
+R=GF(p)
+x=var('x')
+S=PolynomialRing(R,x)
+a=[0,1,3,7]
+u=[1,4,8,5]
+g=LagrangeInterpolacio(a,u,S,x)
+print expand(g(x))
+# ellenorzes
+for i in range(len(a)):
+    print g(a[i])

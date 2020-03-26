@@ -1,0 +1,81 @@
+# n (kulonbozo) primosztoinak meghatarozasa O(sqrt(n)) idoben
+# (primitiv egyseggyok megkeresesehez)
+# output az n primosztoi (multiplicitas nelkul)
+def TrialDivision(n):
+   a,p=[],2
+   while p**2<=n:
+      if n%p==0:
+         while n%p==0:
+               n=n//p
+         a+=[p]
+      p+=1
+   # while ciklusbol kileptunk, ekkor n prim vagy 1
+   if n>1:
+      a+=[n]
+   return a
+
+# egy n-edik primitiv egyseggyok megkeresese mod p
+# ilyen pontosan akkor van, ha p-1 oszthato n-nel
+def FindPrimitiveRoot(p,n):
+   if (p-1)%n>0:
+      print "Nincs ",n,"-dik primitiv egyseggyok GF(",p,")-ben!"
+      return
+   a=TrialDivision(p-1)
+   S=GF(p)
+   G=S(2)
+   while 1:
+     found=True
+     for q in a:
+         if G**((p-1)//q)==1: # ha ez igaz, akkor G nem primitiv gyok
+            found=False
+            break
+     if found==True:
+        return G**((p-1)//n)
+     G+=1
+
+# N 2 hatvany
+# w N-edik primitiv egyseggyok (ez omega volt az oran)
+# a max (N-1)-edfoku polinom
+def FFT(N,w,a):
+    e=a.coeffs()
+    e+=[0]*(N-len(e)) # 0-kkal kiegeszitem, hogy N hosszu legyen a polinom-egyutthato lista
+    A=[0]*N
+    if N==1:
+       A[0]=a[0]
+    else:
+       b=sum(e[2*i]*x**i for i in range(N//2))
+       c=sum(e[2*i+1]*x**i for i in range(N//2))
+       B=FFT(N//2,w**2,b)
+       C=FFT(N//2,w**2,c)
+       p=order(a.base_ring()) # alapgyuru GF(p)
+       S=GF(p)
+       MULT=S(1)
+       for i in range(N//2):
+           # MULT=w**i teljesul
+           A[i]=B[i]+MULT*C[i]
+           A[i+N//2]=B[i]-MULT*C[i]
+           MULT*=w
+    return A
+
+
+# a,b polinomok, m,n a fokszam
+# a*b az output
+def FFTMultiply(a,b):
+    m=a.degree()
+    n=b.degree()
+    N=1
+    while N<=n+m:
+          N*=2
+    w=FindPrimitiveRoot(p,N)
+    A=FFT(N,w,a)
+    B=FFT(N,w,b)
+    C=sum(A[i]*B[i]*x**i for i in range(N))
+    c=FFT(N,1/w,C)
+    return sum(c[i]*x**i for i in range(N))/N
+
+# orai pelda megoldasa FFT-vel:
+p=41
+R.<x>=PolynomialRing(GF(p))
+a=3*x^3+x^2-4*x+1
+b=x^3+2*x^2+5*x-3
+FFTMultiply(a,b)

@@ -1,0 +1,29 @@
+# a,b polinomok, m,n a fokszam
+# N 2-hatvany
+# m,n<N
+# a*b az output
+def Karatsuba(a,b,N):
+    m=a.degree()
+    n=b.degree()
+    if N==1:
+        return a[0]*b[0]
+    e=a.coeffs()
+    e+=[0]*(N-len(e)) # 0-kkal kiegeszitem, hogy N hosszu legyen a polinom-egyutthato lista
+    f=b.coeffs()
+    f+=[0]*(N-len(f))
+    a1=sum(e[i+N//2]*x**i for i in range(N//2))
+    a2=sum(e[i]*x**i for i in range(N//2))
+    b1=sum(f[i+N//2]*x**i for i in range(N//2))
+    b2=sum(f[i]*x**i for i in range(N//2))
+    m1=Karatsuba(a1,b1,N//2)
+    m2=Karatsuba(a1-a2,b2-b1,N//2)
+    m3=Karatsuba(a2,b2,N//2)
+    c=m1*x**N+(m1+m2+m3)*x**(N//2)+m3
+    return c
+
+# pelda 
+p=41
+R.<x>=PolynomialRing(GF(p))
+a=R(3*x^3+x^2-4*x+1)
+b=R(x^3+2*x^2+5*x-3)
+Karatsuba(a,b,4)

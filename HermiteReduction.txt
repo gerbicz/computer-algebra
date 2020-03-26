@@ -1,0 +1,136 @@
+# input: a polinom
+# output: a negyzetmentes faktorizacioja
+
+def YunFactorisation(a):
+    c=gcd(a,diff(a))
+    w=a//c
+    y=diff(a)//c
+    z=y-diff(w)
+    lista=[gcd(w,z)]
+    while True:
+        w=w//lista[-1]
+        if w.degree()==0: # ellenorzes, hogy keszen vagyunk-e
+            break
+        y=z//lista[-1]
+        z=y-diff(w)
+        lista+=[gcd(w,z)]
+    return lista
+
+# (gyors) Kiterjesztett eukleideszi algoritmus:
+# s,t,g meghatorzasa, ahol: a*s+b*t=g=GCD(a,b)
+# input: a,b polinom
+# output: [s,t,g]
+
+def EEA(a,b):
+    if b==0:
+        return [1,0,a]
+    c,d=a,b
+    c1,d1=1,0
+    while d!=0:
+        [q,r]=c.quo_rem(d)
+        r1=c1-q*d1
+        c,c1=d,d1
+        d,d1=r,r1
+    return [c1,(c-c1*a)//b,c]
+
+# input: p tortpolinom
+#        a negyzetmentes faktorizacioja a nevezonek
+# output: r lista, hogy p/prod(i=0,k-1,a[i]^(i+1))=sum(i=0,k-1,r[i]/a[i]^(i+1))
+# (polniomialis diof. egyenlet megoldasat hasznaljuk)
+
+def PartialFractions(p,a):
+    k=len(a)
+    poli=p
+    r=[]
+    for i in range(k):
+        u=prod(a[j]**(j+1) for j in range(i+1,k))
+        w=a[i]**(i+1)
+        [s,t,g]=EEA(u,w)
+        # u*s+w*t=g, g a test egy eleme, mert relativ prim volt u,w
+        s*=poli//g
+        s%=w
+        t=(poli-u*s)//w
+        r+=[s]
+        poli=t
+    return r
+
+# input: f=p/q tortpolinom
+# output: [P,rational_part,integral_part], ahol
+#          P ez az integral polinom resze, de kiintegralatlanul
+#          rational_part a racionalis resze az integralnak, torteket nem vonom ossze
+#          integral_part a logaritmikus resz, torteket itt sem vonom ossze
+
+def HermiteReduction(f):
+    p=numerator(f)
+    q=denominator(f)
+    lc=q.leading_coefficient() # hogy fopolinomot keszitsunk a nevezobol
+    p//=lc
+    q//=lc
+    a=YunFactorisation(q)
+    k=len(a)
+    [P,r]=p.quo_rem(q) # az integral polinom reszenek levalasztasa
+    r=PartialFractions(r,a)
+    rational_part=[]
+    integral_part=[]
+    for i in range(k):
+        q=a[i]
+        if q!=1:
+            c=r[i]
+            egyutthato=[]
+            res=r[i]
+            for j in range(i+1):
+                [s,t]=res.quo_rem(q)
+                egyutthato=[t]+egyutthato # az egyutthatok forditott sorrendu meghatarozasa
+                res=s
+            [s,t,g]=EEA(q,diff(q)) # q, diff(q) relativ primek
+            s//=g
+            t//=g
+            for n in range(i,0,-1): # vegetol megyek vissza, gyorsabb, mint Geddes
+                if egyutthato[n]!=0:
+                    # s2*q+t2*diff(q)=egyutthato[n] polinomialis diof. egyenlet megoldasa
+                    # s*q+t*diff(q)=1 felhasznalasaval konnyu
+                    t2=t*egyutthato[n]
+                    t2%=q
+                    s2=(egyutthato[n]-t2*diff(q))//q
+                    if t2!=0:
+                        rational_part+=[-t2/(n*q**n)]
+                    egyutthato[n-1]+=s2+diff(t2)/n
+            if egyutthato[0]!=0:
+                integral_part+=[egyutthato[0]/q]
+    return [P,rational_part,integral_part]
+
+# Geddes peldai:
+
+x=var('x')
+R.<x>=PolynomialRing(QQ)
+p=441*x**7+780*x**6-2861*x**5+4085*x**4+7695*x**3+3713*x**2-43253*x+24500
+q=9*x**6+6*x**5-65*x**4+20*x**3+135*x**2-154*x+49
+f=p/q
+print HermiteReduction(f)
+print
+
+x=var('x')
+R.<x>=PolynomialRing(QQ)
+p=36*x**6+126*x**5+183*x**4+13807/6*x**3-407*x**2-3242/5*x+3044/15
+q=(x**2+7/6*x+1/3)**2*(x-2/5)**3
+f=p/q
+print HermiteReduction(f)
+print
+
+# example 4
+x=var('x')
+R.<x>=PolynomialRing(QQ)
+p=x**5-x**4+4*x**3+x**2-x+5
+q=x**4-2*x**3+5*x**2-4*x+4
+f=p/q
+print HermiteReduction(f)
+print
+
+# example 9, itt q negyzetmentes polinom, Hermite nem is csinal semmit
+x=var('x')
+R.<x>=PolynomialRing(QQ)
+p=8*x**9+x**8-12*x**7-4*x**6-26*x**5-6*x**4+30*x**3+23*x**2-2*x-7
+q=x**10-2*x**8-2*x**7-4*x**6+7*x**4+10*x**3+3*x**2-4*x-2
+f=p/q
+print HermiteReduction(f)
+print
